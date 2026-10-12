@@ -184,6 +184,12 @@ export default function Navbar() {
           {/* Primary CTA on the far right */}
           <div className="hidden md:flex items-center gap-4">
             <Link
+              href="/login"
+              className="text-sm font-medium text-[#22231F] hover:text-[#12452E] transition-colors"
+            >
+              Log in
+            </Link>
+            <Link
               href="/book-inspection"
               className="px-6 py-2.5 rounded-full text-sm font-medium text-[#22231F] bg-transparent border border-[#E4DFD2] hover:bg-[#12452E] hover:text-white hover:border-[#12452E] transition-all duration-200 shadow-sm active:scale-95"
             >

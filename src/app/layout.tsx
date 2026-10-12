@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import Providers from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -53,7 +54,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${playfairDisplay.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#FAF8EF] text-[#22231F] selection:bg-[#DCE9DF] selection:text-[#0B3523]">
-        {children}
+        {/* Providers wraps the app in TanStack Query's QueryClientProvider */}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
