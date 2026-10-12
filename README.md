@@ -176,147 +176,81 @@ Full interactive digital property inspection document:
 - **Photo Evidence Gallery**: High-res inspection photos with timestamped captions.
 - **PDF Download Action**: Instant download notification for official inspection certificate.
 
+### 3. `/login`
+Role-based login screen (PRD F-011):
+- **Role switch**: Owner or Inspector, which decides the dashboard opened after login.
+- **React Hook Form + Zod**: email format and minimum password length validated by a schema.
+- **Demo session**: the chosen role is saved in `localStorage` until the NestJS + JWT backend is ready.
+
+### 4. `/owner` — Owner Dashboard
+Implements PRD US-002, US-005 and US-007:
+- **Counts row**: properties, open issues, average health score, next inspection.
+- **Property cards**: each with an SVG health-score ring (red 0-40, amber 40-70, green 70-100).
+- **Health trend chart**: six-month line chart built with Recharts.
+- **Approve / Decline**: flagged issues cannot become repairs without the owner's explicit decision.
+
+### 5. `/inspector` — Inspector Dashboard
+Implements PRD US-004 and US-006:
+- **Assigned jobs**: status badge, date and a progress bar (`itemsDone / itemsTotal`).
+- **Checklist grouped by room**: matches how an inspector walks through a property.
+- **Pass / Attention / Fail** on every row; *Submit checklist* unlocks only when all items have a status.
+
 ---
 
 ## 📁 Project Architecture & File Structure
 
+This is the **actual** structure in the repository today.
+
 ```text
-groundpulse-frontend/
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx
-│   ├── globals.css
+GroundPulse-Frontend/
+├── src/
+│   ├── app/                        # App Router: every folder = one URL
+│   │   ├── layout.tsx              # wraps every page (fonts, body, Providers)
+│   │   ├── providers.tsx           # creates the TanStack Query client
+│   │   ├── globals.css             # Tailwind import + colour tokens
+│   │   ├── page.tsx                # "/"            landing page
+│   │   ├── login/page.tsx          # "/login"       login + role switch
+│   │   ├── owner/page.tsx          # "/owner"       owner dashboard
+│   │   ├── inspector/page.tsx      # "/inspector"   inspector dashboard
+│   │   ├── book-inspection/page.tsx
+│   │   └── sample-report/page.tsx
 │   │
-│   ├── (auth)/
-│   │   ├── layout.tsx
-│   │   ├── login/page.tsx
-│   │   ├── register/page.tsx
-│   │   └── forgot-password/page.tsx
+│   ├── components/
+│   │   ├── ui/                     # small reusable building blocks
+│   │   │   ├── Button.tsx          # 3 variants: primary / secondary / ghost
+│   │   │   ├── Card.tsx            # white rounded panel
+│   │   │   ├── Badge.tsx           # status pill + toneForStatus() colour map
+│   │   │   ├── Input.tsx           # text field that renders its own error
+│   │   │   └── StatCard.tsx        # one number + label box
+│   │   │
+│   │   ├── dashboard/
+│   │   │   ├── DashboardShell.tsx  # shared top bar + login guard
+│   │   │   └── HealthRing.tsx      # SVG circular health score
+│   │   │
+│   │   └── (landing page sections: Navbar, HeroSection, TrustSection,
+│   │        HowItWorks, WhatWeInspect, SampleReportPreview,
+│   │        InspectorVerification, PricingSection, Testimonials,
+│   │        FAQSection, FinalCTA, Footer)
 │   │
-│   ├── onboarding/
-│   │   ├── welcome/page.tsx
-│   │   └── add-first-property/page.tsx
-│   │
-│   ├── owner/
-│   │   ├── layout.tsx
-│   │   ├── dashboard/page.tsx
-│   │   ├── properties/page.tsx
-│   │   ├── property/[id]/page.tsx
-│   │   ├── inspections/page.tsx
-│   │   └── issue/[id]/page.tsx
-│   │
-│   ├── inspector/
-│   │   ├── layout.tsx
-│   │   ├── inspections/page.tsx
-│   │   └── inspection/[id]/checklist/page.tsx
-│   │
-│   ├── admin/
-│   │   ├── layout.tsx
-│   │   ├── dashboard/page.tsx
-│   │   ├── properties/page.tsx
-│   │   ├── inspections/page.tsx
-│   │   └── providers/page.tsx
-│   │
-│   └── provider/
-│       ├── layout.tsx
-│       ├── jobs/page.tsx
-│       └── job/[id]/page.tsx
-│
-├── components/
-│   ├── ui/
-│   │   ├── button.tsx
-│   │   ├── card.tsx
-│   │   ├── input.tsx
-│   │   ├── badge.tsx
-│   │   ├── dialog.tsx
-│   │   ├── dropdown-menu.tsx
-│   │   ├── skeleton.tsx
-│   │   ├── toast.tsx
-│   │   └── empty-state.tsx
-│   │
-│   ├── layout/
-│   │   ├── sidebar.tsx
-│   │   ├── topbar.tsx
-│   │   ├── notification-bell.tsx
-│   │   └── role-nav.tsx
-│   │
-│   ├── property/
-│   │   ├── property-card.tsx
-│   │   ├── property-form.tsx
-│   │   ├── health-score-ring.tsx
-│   │   └── inspection-history.tsx
-│   │
-│   ├── inspection/
-│   │   ├── schedule-inspection-form.tsx
-│   │   ├── inspection-card.tsx
-│   │   ├── checklist-item-row.tsx
-│   │   ├── checklist-section.tsx
-│   │   ├── media-uploader.tsx
-│   │   └── report-card.tsx
-│   │
-│   ├── issue/
-│   │   ├── issue-card.tsx
-│   │   ├── issue-detail-card.tsx
-│   │   ├── flag-issue-sheet.tsx
-│   │   ├── approve-decline-buttons.tsx
-│   │   └── repair-status-tracker.tsx
-│   │
-│   ├── provider/
-│   │   ├── job-card.tsx
-│   │   └── mark-complete-dialog.tsx
-│   │
-│   └── admin/
-│       ├── live-count-card.tsx
-│       ├── drill-down-table.tsx
-│       └── reassignment-dialog.tsx
-│
-├── hooks/
-│   ├── use-auth.ts
-│   ├── use-properties.ts
-│   ├── use-inspections.ts
-│   ├── use-checklist.ts
-│   ├── use-issues.ts
-│   ├── use-repairs.ts
-│   ├── use-providers.ts
-│   └── use-notifications.ts
-│
-├── lib/
-│   ├── api.ts
-│   ├── axios.ts
-│   ├── socket.ts
-│   ├── query-client.ts
-│   ├── validation.ts
-│   └── utils.ts
-│
-├── stores/
-│   ├── auth-store.ts
-│   ├── checklist-store.ts
-│   ├── preferences-store.ts
-│   └── realtime-store.ts
-│
-├── types/
-│   ├── api.ts
-│   ├── auth.ts
-│   ├── property.ts
-│   ├── inspection.ts
-│   ├── issue.ts
-│   ├── repair.ts
-│   ├── provider.ts
-│   └── notification.ts
+│   └── lib/                        # logic, no UI
+│       ├── types.ts                # TypeScript types for every entity
+│       ├── mock-data.ts            # sample data standing in for the database
+│       ├── api.ts                  # fake API functions (return Promises)
+│       ├── auth.ts                 # demo session in localStorage
+│       └── utils.ts                # cn() class-merge helper
 │
 ├── public/
-│   ├── logo.svg
-│   └── favicon.ico
-│
-├── .env.local.example
-├── .gitignore
-├── next.config.mjs
+├── FRONTEND-GUIDE.md               # how everything works, for reviews
+├── next.config.ts
 ├── package.json
-├── postcss.config.mjs
-├── tailwind.config.ts
-├── tsconfig.json
-└── README.md
+└── tsconfig.json
 ```
+
+### Planned for later sprints (not built yet)
+
+`admin/` and `provider/` dashboards, property detail and issue detail pages,
+media upload, Socket.IO real-time updates, and the `hooks/` + `stores/` folders
+that will appear once the backend API exists.
 
 ---
 
@@ -326,8 +260,40 @@ groundpulse-frontend/
 - **Language**: [TypeScript 5](https://www.typescriptlang.org/)
 - **UI Library**: [React 19](https://react.dev/)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **Data fetching & caching**: [TanStack Query](https://tanstack.com/query) (`useQuery` in both dashboards)
+- **Forms**: [React Hook Form](https://react-hook-form.com/) (login form state)
+- **Validation**: [Zod](https://zod.dev/) (login schema, via `@hookform/resolvers`)
+- **Charts**: [Recharts](https://recharts.org/) (owner health-score trend)
+- **Class merging**: `clsx` + `tailwind-merge` (the `cn()` helper in `src/lib/utils.ts`)
 - **Icons**: [Lucide React](https://lucide.dev/)
 - **Typography**: [Google Fonts](https://fonts.google.com/) (*Playfair Display* & *Geist Sans*)
+
+> **Note on shadcn/ui:** the PRD lists shadcn/ui. shadcn is a *pattern*, not a
+> runtime dependency — components live inside your own repo so you can edit
+> them. `src/components/ui/` follows that pattern and uses the same `cn()`
+> helper. The Radix-based shadcn components will be added when we need a modal
+> or dropdown (e.g. Schedule Inspection).
+
+---
+
+## 📊 Current Status
+
+| Area | Status |
+|---|---|
+| Landing page, booking form, sample report | ✅ Built |
+| Login with role switch | ✅ Built |
+| Owner dashboard | ✅ Built |
+| Inspector dashboard | ✅ Built |
+| Data source | ⚠️ Mock data in `src/lib/mock-data.ts` — no backend yet |
+| Authentication | ⚠️ Demo only (localStorage). Real auth = Passport.js + JWT on the backend |
+| Photo/video upload | ❌ Needs backend S3 signed URLs |
+| Real-time updates (Socket.IO) | ❌ Needs backend |
+| Admin & Service Provider dashboards | ❌ Next sprint |
+
+Backend (NestJS + Prisma + PostgreSQL) is developed separately in the
+[Backend repository](https://github.com/Ground-Pulse/Backend). When its endpoints
+are ready, only the function bodies in `src/lib/api.ts` change — no component is
+touched.
 
 ---
 
