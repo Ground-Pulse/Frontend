@@ -1,36 +1,40 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Small coloured pill used for statuses:
- * PASS / FAIL / ATTENTION on checklist rows, and
- * SCHEDULED / IN_PROGRESS / SUBMITTED / FLAGGED / APPROVED on lists.
+ * Status pill. Same component in Owner, Inspector, Admin and Provider views
+ * (UX principle: consistency).
  */
-export type Tone = "green" | "red" | "amber" | "neutral";
+export type Tone = "green" | "red" | "amber" | "neutral" | "blue" | "teal";
 
 const tones: Record<Tone, string> = {
-  green: "bg-[#DCE9DF] text-[#0B3523]",
-  red: "bg-[#FBE4E2] text-[#8A2B20]",
-  amber: "bg-[#FAEFD6] text-[#7A5A12]",
-  neutral: "bg-[#F3F0E5] text-[#6B6B63]",
+  green: "bg-ok-soft text-ok",
+  red: "bg-bad-soft text-bad",
+  amber: "bg-warn-soft text-warn",
+  neutral: "bg-surface-2 text-muted",
+  blue: "bg-info-soft text-info",
+  teal: "bg-teal-soft text-teal",
 };
 
 export default function Badge({
   tone = "neutral",
   children,
   className,
+  icon,
 }: {
   tone?: Tone;
   children: React.ReactNode;
   className?: string;
+  icon?: React.ReactNode;
 }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium",
         tones[tone],
         className
       )}
     >
+      {icon}
       {children}
     </span>
   );
@@ -41,15 +45,33 @@ export function toneForStatus(status: string): Tone {
   switch (status) {
     case "PASS":
     case "SUBMITTED":
-    case "APPROVED":
+    case "COMPLETED":
+    case "CLOSED":
       return "green";
     case "FAIL":
     case "FLAGGED":
       return "red";
     case "ATTENTION":
     case "IN_PROGRESS":
+    case "REQUESTED":
       return "amber";
+    case "SCHEDULED":
+    case "ASSIGNED":
+    case "APPROVED":
+      return "blue";
     default:
       return "neutral";
   }
+}
+
+export function statusLabel(status: string) {
+  return status.charAt(0) + status.slice(1).toLowerCase().replace(/_/g, " ");
+}
+
+export function StatusBadge({ status, className }: { status: string; className?: string }) {
+  return (
+    <Badge tone={toneForStatus(status)} className={className}>
+      {statusLabel(status)}
+    </Badge>
+  );
 }

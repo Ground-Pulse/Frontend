@@ -1,210 +1,148 @@
 # GroundPulse Frontend — how it works
 
 My half of the OJT project is the frontend. My teammate builds the backend
-(NestJS + Prisma + PostgreSQL). This file explains what I built, where each file
-is, and why.
+(NestJS + Prisma + PostgreSQL). This file explains what is built, where each
+file is, and why. Everything maps to the project documentation (PRD, UX, FEA,
+API-WEB-01).
 
 ---
 
-## 1. What exists right now
-
-| Route | File | What it is |
-|---|---|---|
-| `/` | `src/app/page.tsx` | Landing page (hero, how it works, pricing, FAQ…) |
-| `/login` | `src/app/login/page.tsx` | Login with role selection (Owner / Inspector) |
-| `/owner` | `src/app/owner/page.tsx` | Owner dashboard |
-| `/inspector` | `src/app/inspector/page.tsx` | Inspector dashboard |
-| `/book-inspection` | `src/app/book-inspection/page.tsx` | Booking form (built earlier) |
-| `/sample-report` | `src/app/sample-report/page.tsx` | Sample report view (built earlier) |
-
----
-
-## 2. Tech stack — and where each piece is actually used
-
-Everything below is from **PRD Section 7.1 (Frontend Web)**.
-
-| Technology | Where I use it | File |
-|---|---|---|
-| **Next.js 16 (App Router)** | Every page. A folder inside `src/app` = a URL | `src/app/**` |
-| **TypeScript** | Every file. All data shapes are typed | `src/lib/types.ts` |
-| **Tailwind CSS v4** | All styling, utility classes in JSX | `src/app/globals.css` |
-| **TanStack Query** | Fetching + caching dashboard data | `src/app/providers.tsx`, both dashboards |
-| **React Hook Form** | Login form state | `src/app/login/page.tsx` |
-| **Zod** | Login validation rules | `src/app/login/page.tsx` |
-| **Recharts** | Health-score trend line chart | `src/app/owner/page.tsx` |
-| **lucide-react** | Icons on the landing page | landing components |
-
-**About shadcn/ui (honest answer if asked):** shadcn/ui is not a normal npm
-library — it is a pattern where the component source lives *inside your repo* so
-you can edit it. I followed that pattern: my primitives sit in
-`src/components/ui/` and use the same `cn()` helper (clsx + tailwind-merge) that
-shadcn uses. I have not added the Radix-based components yet because Button,
-Card, Badge and Input don't need Radix behaviour. When we add a modal or a
-dropdown (Schedule Inspection), that's when Radix/shadcn CLI gets installed.
-
----
-
-## 3. File structure
-
-```
-src/
-├── app/                        ← every folder here becomes a URL (App Router)
-│   ├── layout.tsx              ← wraps EVERY page: fonts, <body>, Providers
-│   ├── providers.tsx           ← creates the TanStack QueryClient
-│   ├── globals.css             ← Tailwind import + colour tokens
-│   ├── page.tsx                ← "/"          landing page
-│   ├── login/page.tsx          ← "/login"     login + role switch
-│   ├── owner/page.tsx          ← "/owner"     owner dashboard
-│   └── inspector/page.tsx      ← "/inspector" inspector dashboard
-│
-├── components/
-│   ├── ui/                     ← small reusable building blocks
-│   │   ├── Button.tsx          ← 3 variants (primary / secondary / ghost)
-│   │   ├── Card.tsx            ← white rounded panel
-│   │   ├── Badge.tsx           ← status pill + toneForStatus() colour mapper
-│   │   ├── Input.tsx           ← text field that shows its validation error
-│   │   └── StatCard.tsx        ← one number + label box
-│   │
-│   ├── dashboard/
-│   │   ├── DashboardShell.tsx  ← shared top bar + login guard for both roles
-│   │   └── HealthRing.tsx      ← SVG circular health score (0-100)
-│   │
-│   └── (landing page components: Navbar, HeroSection, Pricing…)
-│
-└── lib/                        ← logic with no UI inside
-    ├── types.ts                ← TypeScript types for every entity
-    ├── mock-data.ts            ← fake data standing in for the database
-    ├── api.ts                  ← fake API functions (return Promises)
-    ├── auth.ts                 ← saves the demo session in localStorage
-    └── utils.ts                ← cn() class-merging helper
-```
-
----
-
-## 4. How data flows (the question most likely to be asked)
-
-```
-Component (owner/page.tsx)
-        │  useQuery({ queryKey: ["properties"], queryFn: api.getProperties })
-        ▼
-TanStack Query  ── caches the result under the key "properties"
-        │
-        ▼
-src/lib/api.ts  ── getProperties()  (fake: returns a Promise after 500ms)
-        │
-        ▼
-src/lib/mock-data.ts  ── the array of properties
-```
-
-**When the backend is ready**, only one line inside `api.ts` changes:
-
-```ts
-getProperties: () => fetch(`${API_URL}/properties`).then(r => r.json())
-```
-
-No component changes. That separation is the reason `lib/api.ts` exists instead
-of calling fetch directly inside the pages.
-
----
-
-## 5. Page-by-page
-
-### `/login`
-1. `useForm({ resolver: zodResolver(loginSchema) })` connects React Hook Form to Zod.
-2. `loginSchema` says: email must be a valid email, password at least 6 characters.
-3. If validation fails, `errors.email.message` is shown under the field — I never
-   wrote an `if` statement for validation.
-4. On success: `saveSession()` stores name/email/role, then `router.push()` sends
-   the user to `/owner` or `/inspector` based on the selected role.
-
-### `/owner` (PRD US-002, US-005, US-007)
-- Three `useQuery` calls: properties, issues, health trend. Each caches separately.
-- Property cards show the **health score ring** (`HealthRing.tsx`) — colour rule
-  from the PRD: red 0-40, amber 40-70, green 70-100.
-- **Recharts** `LineChart` shows the score over 6 months.
-- Flagged issues have **Approve / Decline** buttons — this is the PRD rule that no
-  repair happens without the owner's explicit approval. Right now the decision is
-  stored in React state; with the backend it becomes a `useMutation`.
-
-### `/inspector` (PRD US-004, US-006)
-- Assigned jobs with a status badge and a progress bar (`itemsDone / itemsTotal`).
-- The checklist is **grouped by room** using `reduce()`, because the inspector
-  walks room by room.
-- Each row has three buttons: **Pass / Attention / Fail** — the three states the
-  PRD defines for a checklist item.
-- "Submit checklist" stays disabled until every item has a status.
-
-### `DashboardShell.tsx`
-Both dashboards are wrapped in it. It:
-- reads the session from localStorage,
-- redirects to `/login` if there is none,
-- redirects to the correct dashboard if the role doesn't match the page,
-- draws the top bar with the user's name and the logout button.
-
-This is the **frontend half** of role-based access (F-011). The backend must
-check the role again — a frontend check alone is never security.
-
----
-
-## 6. Honest limitations (say these before the mentor finds them)
-
-1. **No real backend yet.** All data comes from `src/lib/mock-data.ts`.
-2. **Login is not real authentication.** No password is verified; the role is
-   stored in localStorage. The PRD specifies Passport.js + JWT on the backend.
-3. **Photo upload is not built.** The PRD puts media on AWS S3 — that needs the
-   backend's signed URLs.
-4. **Socket.IO real-time updates are not wired** — nothing to connect to yet.
-5. **Admin and Service Provider dashboards are not built yet** — next sprint.
-
----
-
-## 7. Commands
+## 1. Running it
 
 ```bash
-npm install      # install dependencies
-npm run dev      # start dev server at http://localhost:3000
-npm run build    # production build (currently passes, 7 routes)
-npm run lint     # eslint
+npm install
+npm run dev        # http://localhost:3000
+npm run build
 ```
+
+The app runs **without the backend** using a built-in mock API
+(`NEXT_PUBLIC_USE_MOCK_API=true` in `.env.local`). All data is saved in the
+browser's localStorage, so it survives reloads. Settings → "Reset demo data"
+restores the sample data.
+
+Demo accounts (password `password123`):
+
+| Role | Email | What to try |
+|---|---|---|
+| Owner | priya@example.com | approve/decline the flagged leak, schedule an inspection |
+| Owner | arvind@example.com | 3-property portfolio |
+| Inspector | ravi@example.com | today's Sarjapur job → full checklist → submit |
+| Admin | admin@groundpulse.in | assign providers, verification queue, templates, audit log |
+| Provider | imran@example.com | job in progress → mark complete |
+| Provider | deepa@example.com | locksmith in Mumbai (gets the Andheri job) |
+
+In mock mode the user menu also has a **"Switch demo account"** list.
+
+**Running against the real backend** (separate repo `groundpulse-backend`,
+branch `feat/match-frontend-contract`):
+
+1. In the backend: `docker compose up -d`, `npx prisma migrate deploy`,
+   `npm run prisma:seed`, `npm run start:dev` (port 3001).
+2. Here, in `.env.local`: `NEXT_PUBLIC_USE_MOCK_API=false`
+   (`NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_WS_URL` already point at :3001).
+3. `npm run dev`. Same demo logins (password `password123`).
+
+No component changes — every request goes through `src/lib/apiClient.ts`,
+which also refreshes the 15-minute access token automatically.
 
 ---
 
-## 8. Likely viva questions
+## 2. Routes
 
-**Why Next.js and not plain React?**
-File-based routing (a folder = a URL), server-side rendering for the landing
-page so it is SEO friendly, and one project for both pages and future API routes.
+| Route | Role | Doc reference |
+|---|---|---|
+| `/` `/book-inspection` `/sample-report` | public | marketing |
+| `/login` `/register` `/onboarding/welcome` | public | onboarding stack |
+| `/onboarding/add-property` | Owner | Flow 3 / onboarding |
+| `/dashboard` | Owner | UX screen 1, US-002 |
+| `/property/[id]` | Owner, Admin | UX screen 2 (health timeline, report, issues, documents) |
+| `/schedule` | Owner | inspections list + calendar + .ics export |
+| `/issues` | Owner | issues & repairs |
+| `/issue/[id]` | all roles | UX screen 6 (approve/decline, repair tracker, messages, audit trail) |
+| `/report/[id]` | Owner, Inspector, Admin | US-005 inspection report |
+| `/inspections` `/inspections/calendar` `/inspections/history` | Inspector | UX screen 4 |
+| `/inspection/[id]/checklist` | Inspector | UX screen 5 (full screen) |
+| `/admin/dashboard` `/admin/reassign` `/admin/verification` `/admin/templates` `/admin/audit` | Admin | UX screen 7, US-009, US-011 |
+| `/provider/jobs` `/provider/history` | Provider | UX screen 8, US-010 |
+| `/notifications` | all roles | UX screen 9 |
 
-**What is the App Router?**
-Next.js routing where `src/app/owner/page.tsx` automatically becomes `/owner`.
-`layout.tsx` wraps every page inside its folder.
+`/owner` and `/inspector` (old routes) redirect to the new ones.
 
-**What does "use client" mean at the top of a file?**
-Next.js renders on the server by default. `"use client"` marks a component that
-needs the browser — state, effects, event handlers. My dashboards and login form
-use hooks, so they are client components. The landing page stays server-rendered.
+---
 
-**Why TanStack Query instead of useEffect + useState?**
-It gives caching, loading and error states, de-duplicated requests and refetching
-for free. With `useEffect` I would hand-write all of that in every component.
+## 3. Tech stack — where each piece is used
 
-**What does `queryKey` do?**
-It is the cache ID. Two components asking for `["properties"]` share one cached
-result instead of making two network calls.
+| Technology | Where |
+|---|---|
+| Next.js 16 App Router, route groups `(owner)` `(inspector)` `(admin)` `(provider)` `(shared)` `(focus)` | `src/app/**` |
+| TypeScript strict | everywhere; API types in `src/lib/types.ts` |
+| Tailwind v4 + theme tokens (light + dark) | `src/app/globals.css` (`bg-surface`, `text-ink`, `border-line`…) |
+| shadcn-style components (source in repo) + Radix Dialog | `src/components/ui/*` |
+| TanStack Query (server state) | `src/hooks/use*.ts` |
+| Zustand (client state) | `src/stores/*` — auth, preferences, **activeChecklistStore** (offline draft), realtime |
+| React Hook Form + Zod | property form, schedule, flag issue, login/register, settings |
+| Recharts | `src/components/charts/HealthCharts.tsx` |
+| Calendar UI | `src/components/calendar/MonthCalendar.tsx` (date picker + job calendar) |
+| Socket.IO client | `src/lib/socket.ts`, wired in `components/providers/RealtimeBridge.tsx` |
+| Route guard | `src/proxy.ts` (Next 16 renamed middleware → proxy) + `AppShell` |
 
-**Why Zod with React Hook Form?**
-The validation rules live in one schema object, and `z.infer` generates the
-TypeScript type from that same schema — so the rules and the types can never
-drift apart.
+---
 
-**How is the health score ring drawn?**
-Two SVG circles. The coloured one uses `strokeDasharray` set to
-`circumference × score / 100`, so the arc length equals the percentage.
+## 4. Data flow
 
-**How would you connect the real backend?**
-Replace the function bodies in `src/lib/api.ts` with `fetch` calls to the NestJS
-API and send the JWT in the Authorization header. No component changes.
+```
+Page (view.tsx)
+  └─ hook (src/hooks/useIssues.ts → useApproveIssue)
+       └─ apiClient.post("/issues/:id/approve")       src/lib/apiClient.ts
+            ├─ mock mode → src/lib/mock/server.ts     (same rules the backend must enforce)
+            └─ real mode → fetch(API_URL + path, Bearer JWT)
+Socket event "repair.status.updated"
+  └─ RealtimeBridge → invalidate TanStack queries → UI updates, toast shown
+```
 
-**Where is the role check?**
-`DashboardShell.tsx` on the frontend, and (once built) a CASL guard on the
-backend. The frontend check is only for user experience.
+The mock server enforces the same business rules as the spec: role-scoped
+data, verified-only assignment (`PROVIDER_NOT_VERIFIED`), repair state machine
+(`REPAIR_INVALID_TRANSITION`), past dates rejected, checklist must be complete,
+issue needs a photo, audit log on every state change, notifications + socket
+events, async report generation (stand-in for the BullMQ job) and recurring
+inspections spawning the next one.
+
+---
+
+## 5. Feature checklist (PRD)
+
+Must have: F-001 property registration · F-002 scheduling (one-off/weekly/monthly/quarterly) ·
+F-003 room checklist with draft/resume · F-004 photo/video capture · F-005 report ·
+F-006 issue flagging · F-007 notifications (bell, page, toasts, channel preference) ·
+F-008 approve/decline · F-009 verified provider assignment · F-010 admin dashboard ·
+F-011 role-based access · F-012 persistence (mock: localStorage).
+
+Should have: S-013 health score · S-014 inspection timeline · S-015 repair status tracking (live) ·
+S-016 provider ratings · S-017 per-issue messaging · S-018 multi-property overview.
+
+Could have: C-019 calendar export (.ics) · C-020 checklist templates (admin) ·
+C-021 cost estimates · C-022 document storage.
+
+UX: skeletons, empty and error states with retry, confirm dialogs for high-stakes
+actions, dark mode, keyboard-operable status controls, `aria` labels on rings and
+badges, reduced-motion support, mobile bottom tabs + bottom sheets.
+
+---
+
+## 6. Backend contract
+
+The backend implements every endpoint the frontend calls, with the same
+response shapes as `src/lib/mock/server.ts` (see the backend README's API
+table). Errors are `{ code, message, statusCode }`. Socket.IO events
+`notification.new`, `repair.status.updated`, `issue.flagged`, `report.ready`,
+`inspection.updated`, `dashboard.changed` go to room `user:{id}`. Uploads use
+`POST /media/presign` → PUT the file → store `publicUrl`.
+
+---
+
+## 7. Honest limitations
+
+1. Mock mode stores everything in one browser — use the real backend to share data between people/devices.
+2. Mock videos/PDFs are session-only blob URLs (images are compressed and persisted).
+3. Login is real on the backend (JWT); in mock mode passwords are checked against seed data only.
+4. The frontend role check (proxy + AppShell) is UX only — the backend must enforce RBAC with CASL.

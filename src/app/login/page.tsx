@@ -1,141 +1,120 @@
-"use client";
+﻿"use client";
 
 /**
- * Login page (PRD F-011: Role-Based Access).
- *
- * Stack used here, exactly as the PRD specifies:
- *  - React Hook Form  -> form state, no manual useState per field
- *  - Zod              -> the validation rules, written once as a schema
- *  - zodResolver      -> the bridge that lets RHF use that Zod schema
- *
- * The user picks a role (Owner / Inspector). After a valid submit we save a
- * demo session and send them to the matching dashboard. When my teammate's
- * NestJS /auth/login endpoint is ready, only onSubmit changes.
+ * Login (React Hook Form + Zod). The role comes from the account, not from a
+ * toggle — the backend issues a JWT with the user's role and the app routes to
+ * that role's home.
  */
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
-
+import AuthLayout from "@/components/auth/AuthLayout";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
-import { saveSession } from "@/lib/auth";
+import { useLogin } from "@/hooks/useAuth";
+import { useHydrated } from "@/hooks/useHydrated";
+import { config } from "@/lib/config";
+import { errorMessage } from "@/lib/errors";
 import type { Role } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { ROLE_HOME, ROLE_LABEL, useAuthStore } from "@/stores/authStore";
 
-/** Validation rules. Zod checks these before onSubmit ever runs. */
 const loginSchema = z.object({
-  email: z.string().min(1, "Email is required").email("Enter a valid email"),
+  email: z.string().trim().min(1, "Email is required").email("Enter a valid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
-
-/** The TypeScript type is generated from the schema - no duplicate typing. */
 type LoginForm = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [role, setRole] = useState<Role>("OWNER");
+const DEMO: { role: Role; email: string; who: string }[] = [
+  { role: "OWNER", email: "priya@example.com", who: "Priya · 2 properties" },
+  { role: "INSPECTOR", email: "ravi@example.com", who: "Ravi · job today" },
+  { role: "ADMIN", email: "admin@groundpulse.in", who: "Anita · admin" },
+  { role: "PROVIDER", email: "imran@example.com", who: "Imran · electrician" },
+];
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<LoginForm>({
+function LoginInner() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next");
+  const login = useLogin();
+  const hydrated = useHydrated();
+  const user = useAuthStore((s) => s.user);
+  const [error, setError] = useState<string | null>(null);
+
+  // Already signed in → go home.
+  useEffect(() => {
+    if (hydrated && user && !login.isPending && !login.isSuccess) router.replace(ROLE_HOME[user.role]);
+  }, [hydrated, user, router, login.isPending, login.isSuccess]);
+
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
 
-  async function onSubmit(data: LoginForm) {
-    // Demo only: pretend the API checked the credentials.
-    await new Promise((r) => setTimeout(r, 600));
-
-    saveSession({
-      name: role === "OWNER" ? "Priya Sharma" : "Ravi Kumar",
-      email: data.email,
-      role,
+  const onSubmit = (data: LoginForm) => {
+    setError(null);
+    login.mutate(data, {
+      onSuccess: (res) => {
+        const home = ROLE_HOME[res.user.role];
+        router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : home);
+      },
+      onError: (e) => setError(errorMessage(e, "Invalid email or password")),
     });
-
-    router.push(role === "OWNER" ? "/owner" : "/inspector");
-  }
+  };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#FAF8EF] px-5 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <Link href="/" className="font-serif text-2xl font-semibold">
-            GroundPulse
-          </Link>
-          <p className="mt-2 text-sm text-[#6B6B63]">
-            Log in to see your property dashboard
-          </p>
+    <AuthLayout title="Welcome back" subtitle="Sign in to see your properties, jobs or the admin console.">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+        <div>
+          <label htmlFor="email" className="mb-1.5 block text-sm font-medium">Email</label>
+          <Input id="email" type="email" autoComplete="email" placeholder="name@example.com" error={errors.email?.message} {...register("email")} />
         </div>
+        <div>
+          <label htmlFor="password" className="mb-1.5 block text-sm font-medium">Password</label>
+          <Input id="password" type="password" autoComplete="current-password" placeholder="••••••" error={errors.password?.message} {...register("password")} />
+        </div>
+        <Button type="submit" size="lg" className="w-full" loading={login.isPending}>
+          Sign in
+        </Button>
+      </form>
 
-        <div className="rounded-2xl border border-[#E4DFD2] bg-white p-7 shadow-[0_1px_2px_rgba(34,35,31,0.04)]">
-          {/* Role switch - decides which dashboard opens after login */}
-          <div className="mb-6">
-            <p className="mb-2 text-xs uppercase tracking-wide text-[#6B6B63]">
-              I am an
-            </p>
-            <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#F3F0E5] p-1">
-              {(["OWNER", "INSPECTOR"] as Role[]).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => setRole(r)}
-                  className={cn(
-                    "h-9 rounded-lg text-sm font-medium transition-colors",
-                    role === r
-                      ? "bg-[#12452E] text-[#FAF8EF]"
-                      : "text-[#6B6B63] hover:text-[#22231F]"
-                  )}
-                >
-                  {r === "OWNER" ? "Owner" : "Inspector"}
-                </button>
-              ))}
-            </div>
+      <p className="mt-6 text-center text-sm text-[#6B6B63]">
+        New to GroundPulse?{" "}
+        <Link href="/onboarding/welcome" className="font-semibold text-[#12452E] hover:underline">Create an account</Link>
+      </p>
+
+      {config.useMockApi && (
+        <div className="mt-8 rounded-2xl border border-dashed border-[#E4DFD2] p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#6B6B63]">Demo accounts · password123</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {DEMO.map((d) => (
+              <button
+                key={d.email}
+                type="button"
+                onClick={() => {
+                  setValue("email", d.email, { shouldValidate: true });
+                  setValue("password", "password123", { shouldValidate: true });
+                }}
+                className="rounded-xl border border-[#E4DFD2] bg-white px-3 py-2 text-left transition-colors hover:border-[#12452E]"
+              >
+                <span className="block text-sm font-medium">{ROLE_LABEL[d.role]}</span>
+                <span className="block text-xs text-[#6B6B63]">{d.who}</span>
+              </button>
+            ))}
           </div>
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">Email</label>
-              <Input
-                type="email"
-                placeholder="you@example.com"
-                error={errors.email?.message}
-                {...register("email")}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium">
-                Password
-              </label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                error={errors.password?.message}
-                {...register("password")}
-              />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? "Signing in…" : "Log in"}
-            </Button>
-          </form>
-
-          <p className="mt-5 rounded-xl bg-[#F3F0E5] p-3 text-center text-xs text-[#6B6B63]">
-            Demo login — any email and a 6+ character password works.
-          </p>
         </div>
+      )}
+    </AuthLayout>
+  );
+}
 
-        <p className="mt-6 text-center text-sm text-[#6B6B63]">
-          <Link href="/" className="underline hover:text-[#12452E]">
-            Back to home
-          </Link>
-        </p>
-      </div>
-    </div>
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginInner />
+    </Suspense>
   );
 }
