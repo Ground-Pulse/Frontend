@@ -10,12 +10,22 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16.4.0-black?style=flat-square&logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/Next.js-16.4.6-black?style=flat-square&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/React-19.3.0-blue?style=flat-square&logo=react" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-v4-38bdf8?style=flat-square&logo=tailwind-css" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Design-Editorial_Real_Estate-12452E?style=flat-square" alt="Design" />
 </p>
+
+## 🌐 Live Demo
+
+| | |
+|---|---|
+| **Website** | https://groundpulse-web.vercel.app |
+| **Backend API** | https://groundpulse-api.onrender.com ([source](https://github.com/Ground-Pulse/Backend)) |
+
+Demo logins (password `password123`): `priya@example.com` (owner), `ravi@example.com` (inspector), `admin@groundpulse.in` (admin), `imran@example.com` (provider).
+The free backend sleeps after 15 minutes idle — the first request can take ~50 seconds.
 
 ---
 
